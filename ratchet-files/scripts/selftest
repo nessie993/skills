@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# selftest — exercise check-file-size.mjs against throwaway git repos.
+# Needs node 18.3+, git, and npm (fetches linguist-languages once into a
+# scratch dir beside a copy of the script). Exit 0 means every case passed.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/tool"
+cp "$here/check-file-size.mjs" "$work/tool/"
+npm install --silent --no-audit --no-fund --prefix "$work/tool" linguist-languages@9.5.0 >/dev/null
+check="$work/tool/check-file-size.mjs"
+
+pass=0 fail=0
+expect() { # expect <want-exit> <label> <cmd...>
+  local want="$1" label="$2"; shift 2
+  local got=0; "$@" >"$work/out" 2>&1 || got=$?
+  if [ "$got" = "$want" ]; then pass=$((pass + 1)); echo "ok    $label";
+  else fail=$((fail + 1)); echo "FAIL  $label (exit $got, want $want)"; sed 's/^/      /' "$work/out" | head -8; fi
+}
+fill() { head -c "$1" /dev/zero | tr '\0' 'a' | fold -w 80; } # ~$1 bytes of source
+repo() {
+  local d; d="$(mktemp -d "$work/repo.XXXX")"
+  git -C "$d" init -q -b main
+  git -C "$d" config user.email t@example.invalid
+  git -C "$d" config user.name selftest
+  echo "$d"
+}
+run() { (cd "$R" && node "$check" "$@"); }
+
+# --- staged ratchet ----------------------------------------------------------
+R="$(repo)"; cd "$R"
+fill 40000 > frozen.js; echo "x" > small.js; echo "doc" > README.md
+git add -A && git commit -qm base
+
+echo "y" > tiny.js; git add tiny.js
+expect 0 "new small file passes" run tiny.js
+fill 40000 > new.js; git add new.js
+expect 1 "new file over budget is refused" run new.js
+git rm -q --cached new.js tiny.js; rm new.js tiny.js
+
+expect 0 "unchanged frozen file passes" run frozen.js
+echo "more" >> frozen.js; git add frozen.js
+expect 1 "frozen file that grows is refused" run frozen.js
+git checkout -q -- frozen.js 2>/dev/null || git reset -q --hard
+head -c 39000 frozen.js > t && mv t frozen.js; git add frozen.js
+expect 0 "frozen file that shrinks passes" run frozen.js
+git reset -q --hard
+
+git mv frozen.js moved.js
+expect 0 "plain rename of frozen file passes" run moved.js
+git reset -q --hard
+git mv frozen.js "café.js"
+expect 0 "rename to a quoted (unicode) path passes" run "café.js"
+echo "more" >> "café.js"; git add -A
+expect 1 "rename that also grows is refused" run "café.js"
+git reset -q --hard
+
+fill 40000 > md.md; git add md.md
+expect 0 "prose (.md) is not source" run md.md
+git rm -q --cached md.md; rm md.md
+{ echo "// @ratchet-files-ignore: one opcode table"; fill 40000; } > table.js; git add table.js
+expect 0 "pragma opts a file out" run table.js
+git rm -q --cached table.js; rm table.js
+echo "gen.js linguist-generated" > .gitattributes; fill 40000 > gen.js; git add .gitattributes gen.js
+expect 0 "linguist-generated is skipped" run gen.js
+git reset -q --hard; git clean -qfd
+
+# --- arguments and environment ----------------------------------------------
+expect 2 "non-numeric budget is rejected" run --all --max-tokens 8k
+expect 2 "zero budget is rejected" run --all --max-tokens 0
+expect 1 "--all lists the frozen backlog" run --all
+expect 0 "--all honours a larger budget" run --all --max-tokens 20000
+expect 2 "--all with --base is rejected" run --all --base main
+expect 2 "outside a repository fails cleanly" bash -c "cd '$work/tool' && node '$check' --all"
+
+# --- --base (CI) ------------------------------------------------------------
+git switch -q -c feature
+echo "z" > ok.js; git add ok.js; git commit -qm ok
+expect 0 "--base: branch within budget passes" run --base main
+git mv frozen.js "naïve.js"; git commit -qm rename
+expect 0 "--base: unicode rename of frozen file passes" run --base main
+echo "more" >> "naïve.js"; git commit -qam grow
+expect 1 "--base: frozen file grown on the branch is refused" run --base main
+git reset -q --hard HEAD~1
+fill 40000 > huge.js; git add huge.js; git commit -qm huge
+expect 1 "--base: new file over budget on the branch is refused" run --base main
+git rm -q huge.js; git commit -qm drop
+expect 0 "--base: file added then deleted on the branch passes" run --base main
+expect 2 "--base: unknown ref fails cleanly" run --base no-such-ref
+
+echo; echo "$pass passed, $fail failed"
+[ "$fail" -eq 0 ]
