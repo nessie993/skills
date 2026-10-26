@@ -70,3 +70,8 @@ code-discoverable items, changelog and narrative, and any sentence that restates
 the code. Then read what survives as a stranger with no conversation history —
 every remaining line should be a principle, a why, or a pointer. If a line would
 be just as true and just as useful as a link, make it the link.
+
+## Provenance
+
+Adapted from [`dzhng/skills`](https://github.com/dzhng/skills/tree/main/skills/engineering/write-docs)
+at `50d0752` (MIT, see [`LICENSE`](LICENSE)). Unchanged.

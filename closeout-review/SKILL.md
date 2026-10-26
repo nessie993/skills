@@ -1,9 +1,9 @@
 ---
-name: review
-description: Closeout pass on a finished substantive change — sequence refactor-clean (shape), code-review (diff), and write-docs (docs) so all three run, in the order where each feeds the next. Use after implementing a slice or feature and before calling it done or committing; when the user asks for a final review, a cleanup-and-document pass, or to "review everything." For a diff-only audit, reach code-review directly.
+name: closeout-review
+description: Closeout pass on a finished substantive change — sequence refactor-clean (shape), diff-review (diff), and write-docs (docs) so all three run, in the order where each feeds the next. Use after implementing a slice or feature and before calling it done or committing; when the user asks for a final review, a cleanup-and-document pass, or to "review everything." For a diff-only audit, reach diff-review directly.
 ---
 
-# Review
+# Closeout review
 
 A finished change earns "done" only after three lenses pass: its **shape**, its
 **diff**, and its **docs**. Each has a specialist skill. This skill owns only
@@ -15,8 +15,11 @@ what they can't — the order they run in, the loop between them, and one verdic
    whole pass for trivial edits.
 2. **Shape — [refactor-clean](../refactor-clean/SKILL.md).** Run it first, while
    restructuring is cheap and before you audit a diff that's about to move.
-3. **Diff — [code-review](../code-review/SKILL.md).** Audit the settled shape. A
+3. **Diff — [diff-review](../diff-review/SKILL.md).** Audit the settled shape. A
    finding that forces a structural change sends you back to step 2, not onward.
+   diff-review checks hygiene and design, not correctness: where a bug-finding
+   review is available (Claude Code's bundled `/code-review`), run it on the same
+   diff and fold its findings into this pass.
 4. **Docs — [write-docs](../write-docs/SKILL.md).** Update the docs this change
    touched. Then trace the link chain from the root README down to each one:
    every link on the path still resolves, and the hub-to-leaf flow still reads
@@ -32,3 +35,8 @@ what they can't — the order they run in, the loop between them, and one verdic
   hit it, even when a later pass owns it.
 - Loop, don't cascade: a later fix that reopens an earlier pass returns there.
   Stop when a full pass adds nothing.
+
+## Provenance
+
+Adapted from [`dzhng/skills`](https://github.com/dzhng/skills/tree/main/skills/engineering/review)
+at `3797915` (MIT, see [`LICENSE`](LICENSE)). Renamed from `review`: Claude Code's bundled `/review` is an alias that never reaches a personal skill of that name. The diff pass names diff-review and pairs it with a correctness review.

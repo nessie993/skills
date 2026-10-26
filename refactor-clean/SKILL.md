@@ -88,8 +88,9 @@ module into the several owners it was hiding.
 
   Two honesty rules, or the number means nothing: formatter churn in files the
   change did not otherwise touch is not part of the change and must stay out of
-  the commit; and a net count near zero can still hide real weight — a new
-  cron, table column, index, endpoint, dependency, or config flag is a surface
+  its commit — land it as a separate commit rather than reverting it; and a net
+  count near zero can still hide real weight — a new cron, table column, index,
+  endpoint, dependency, or config flag is a surface
   someone now owns and maintains, so name those separately from the count.
 - **Do not over-weigh the sunk cost of the existing architecture.** "It already
   exists and works" is not an argument for keeping a shape — coding agents make
@@ -105,8 +106,10 @@ module into the several owners it was hiding.
   too.** The dual of merging duplicates: when one file or function has accreted
   unrelated responsibilities, divide it along ownership seams so each piece owns a
   coherent slice a reader can name and the original thins to composition. **Past
-  ~1000 lines a file is a smell, not a verdict** — some modules earn their size (a
-  cohesive state machine, a generated table, one algorithm with tight internal
+  ~1000 lines a file is a smell, not a verdict** (where a repository runs
+  [ratchet-files](../ratchet-files/SKILL.md), its token budget is the enforced
+  line) — some modules earn their size (a cohesive state machine, a generated
+  table, one algorithm with tight internal
   coupling), but a god-file that registers dozens of routes or handles many domains
   inline is accreted responsibility, not cohesion. The split is right only when
   each new module owns a nameable responsibility and import pressure drops because
@@ -178,3 +181,8 @@ module into the several owners it was hiding.
 - Update the spec or handoff with the new invariant, not the mechanical file list.
 - If the refactor starts widening into unrelated behavior, slice it: land the shared
   contract first, then port consumers in reviewable passes.
+
+## Provenance
+
+Adapted from [`dzhng/skills`](https://github.com/dzhng/skills/tree/main/skills/engineering/refactor-clean)
+at `e370d6a` (MIT, see [`LICENSE`](LICENSE)). The formatter-churn rule agrees with diff-review (a separate commit, never a revert), and the file-size smell defers to ratchet-files where it runs.

@@ -41,10 +41,7 @@ method, guardrails, and stop conditions are in [`SKILL.md`](./SKILL.md).
 
 ## Installing as an agent skill
 
-- **Claude Code (user-level):** symlink or copy `ui-council/` into
-  `~/.claude/skills/ui-council/`.
-- **opencode / project-level:** register this repo's path in the project's
-  skills configuration, or copy the directory into the project's `skills/`.
+See the repository [README](../README.md#install).
 
 The credential environment variables (`UI_EMAIL` / `UI_PASSWORD` by default)
 are read at runtime and are never stored in the config or committed.

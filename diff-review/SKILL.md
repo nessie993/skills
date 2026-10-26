@@ -1,12 +1,14 @@
 ---
-name: code-review
-description: Review changed code for naming, stale references, unnecessary complexity, and comment quality. Use after completing implementation work, before committing, or when the user asks to review or audit code.
+name: diff-review
+description: Audit changed code against hygiene and design rules — names, stale references, guard and fallback logic, comments, test design, API and auth boundaries, data access, batch failure isolation. Use after completing implementation work, before committing, or when the user asks to review or audit code for quality. It is not a bug hunt; pair it with a correctness review.
 allowed-tools: Read Grep Glob Bash
 ---
 
-# Code Review
+# Diff Review
 
-Review the diff or specified files against these principles.
+Review the diff or specified files against these principles. Rules marked
+*(stack)* have stack-specific detail in `references/`; read the matching file
+when the repository uses that stack (`references/convex.md` for Convex).
 
 ## 1. Names must reflect current reality
 
@@ -113,7 +115,7 @@ Before hand-writing a type, adding a cast, pinning a value, or restructuring cod
 
 - A public route authenticates, validates, derives identity, and dispatches to a model function or an internal action that owns the work. Keep that wrapper thin — it is the auth/runtime boundary.
 - Don't inline third-party SDK / analytics / email logic into the public boundary because "it's only 3 lines." Push it behind the dispatch.
-- In Convex specifically: do NOT add `'use node'` to a file holding many actions just to satisfy one — it forces every action in the file into the Node runtime. Split: auth+dispatch (default runtime) → `services/<thing>.ts` (`'use node'`, owns the SDK call).
+- *(stack)* When a runtime directive applies per file, keep it off the boundary file: split the SDK call into its own module rather than moving every route into the heavier runtime.
 
 ## 16. Public endpoints ship at minimum scope
 
@@ -126,17 +128,17 @@ Before hand-writing a type, adding a cast, pinning a value, or restructuring cod
 - For a variant, derive it: `Pick`/`Omit`/`Partial`/`Parameters`/`ReturnType`/indexed access/`Extract`/`Exclude`; Convex/Zod equivalents `Infer<typeof V>`, `FunctionArgs<typeof api.x.y>`, `z.input/z.output`.
 - Bad: `type UserSummary = { id: string; name: string; email: string }` next to an existing `User`. Good: `Pick<User, 'id' | 'name' | 'email'>`.
 
-## 18. Filter at the index, never `take()` + post-filter
+## 18. Filter at the index, never `take()` + post-filter *(stack)*
 
 - When a list query returns rows from a sub-bucket of a table (active vs. archived, `status === X`), the **index** must do the filtering. Don't `.take(N)` the unfiltered query and `.filter()` in JS for the bucket you want.
 - Why it breaks: `.take(N)` returns the N rows at the head of the index's order. If the head is full of the _other_ bucket, the post-filter returns zero even when the bucket has hundreds of older rows. `take(N*2)` only delays the failure.
-- Pattern: put the discriminator in an index and use `.withIndex(..., q => q.eq(...))`, or `q.gt(field, 0)` for the "present" bucket (Convex sorts `undefined` before defined values). Same for `.first()`/`.unique()` and "is there any X" probes.
+- Pattern: put the discriminator in the index (or the `WHERE` clause) the query reads through. Same for "first", "unique", and "is there any X" probes.
 
-## 19. Never `.collect()` — bound the read with `.take(N)`
+## 19. Bound every read of data that grows *(stack)*
 
-- Convex `.collect()` reads every matching row with no upper bound. For anything that accumulates per-tenant over time (sessions, events, ledger rows, audit rows), a query fine on day one eventually pulls thousands of rows on one reactive tick and silently degrades reactivity for the whole client.
-- Replace `.collect()` with `.take(N)` where N is a safety ceiling clearly above today's working set (100, 1000) — a cap against pathological data, not a UX paginator. Same for `.withIndex(...).filter(...).collect()`.
-- If you genuinely need every row (a migration, admin dump, one-shot maintenance), say so with a comment and run it from a cancellable mutation/action, never a reactive `query`.
+- A query with no upper bound over anything that accumulates per tenant over time (sessions, events, ledger rows, audit rows) is fine on day one and eventually pulls thousands of rows into one request or reactive tick.
+- Cap it with a safety ceiling clearly above today's working set (100, 1000) — a guard against pathological data, not a UX paginator.
+- If you genuinely need every row (a migration, admin dump, one-shot maintenance), say so with a comment and run it from a cancellable job, never from a hot or reactive read path.
 
 ## 20. Don't remap rows just to rename or default fields
 
@@ -185,7 +187,7 @@ Before hand-writing a type, adding a cast, pinning a value, or restructuring cod
 
 ## 26. Leave the code better than you found it — a tidy diff is not worth an untidy repo
 
-- **Never revert an incidental improvement to keep your diff focused.** If the formatter, the linter, or a codemod also cleans files your change didn't touch, **commit that too** (as its own commit if it's noisy). Reverting it optimizes for how the diff reads at review time and taxes every future pass, which pays the same cost again and re-reverts it again. The repo's health outranks the diff's tidiness.
+- **Never revert an incidental improvement to keep your diff focused.** If the formatter, the linter, or a codemod also cleans files your change didn't touch, **commit that too** — as its own commit, so it is kept without inflating the change's measured size (refactor-clean counts the change apart from such churn). Reverting it optimizes for how the diff reads at review time and taxes every future pass, which pays the same cost again and re-reverts it again. The repo's health outranks the diff's tidiness.
 - **Dead things go in the pass that finds them.** A dead column, argument, function, export, or a test whose only callers are tests — delete it, plus any comment defending it, right there. Don't file it; a note is a deferral, and the next reader has to re-derive that it's dead.
 - **A comment you discover is false is a defect.** Fix it in place. A wrong comment outlives the diff that would have corrected it and actively misleads — worse than no comment at all.
 - **Fix latent bugs your change surfaces.** Work that makes a rarely-run path run every time will expose ordering bugs, unreachable cleanup, and assertions that never fired. That is your bug now: it became reachable because of you.
@@ -200,3 +202,8 @@ Review: $ARGUMENTS
 If no arguments given, review `git diff --staged` or `git diff` (unstaged changes).
 
 For each issue found, cite the file and line number. Group by category. End with a clean/not-clean verdict.
+
+## Provenance
+
+Adapted from [`dzhng/skills`](https://github.com/dzhng/skills/tree/main/skills/engineering/code-review)
+at `8e74252` (MIT, see [`LICENSE`](LICENSE)). Renamed from `code-review`, which would replace Claude Code's bundled `/code-review`. Convex-specific detail moved to [`references/convex.md`](references/convex.md); the formatter-churn rule agrees with refactor-clean.

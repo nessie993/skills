@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# install — link every skill in this repository into Claude Code's personal
+# skills directory, one symlink per skill (Claude Code discovers skills only
+# at ~/.claude/skills/<name>/SKILL.md). Safe to re-run after a pull: it adds
+# new skills, removes links to skills this repository no longer has, and never
+# touches an entry that is not a symlink into this repository.
+#
+#   scripts/install            # link into ~/.claude/skills
+#   scripts/install --dry-run  # show what would change
+#
+# opencode needs no links: point `skills.paths` in its config at this
+# repository's root once.
+set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+dest="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
+dry=0; [ "${1:-}" = "--dry-run" ] && dry=1
+act() { if [ "$dry" = 1 ]; then echo "would: $*"; else "$@"; fi; }
+
+act mkdir -p "$dest"
+for skill in "$repo"/*/; do
+  skill="${skill%/}"; name="$(basename "$skill")"
+  [ -f "$skill/SKILL.md" ] || continue
+  link="$dest/$name"
+  if [ -L "$link" ]; then
+    [ "$(readlink "$link")" = "$skill" ] && { echo "ok      $name"; continue; }
+    case "$(readlink "$link")" in
+      "$repo"/*) act ln -sfn "$skill" "$link"; echo "relink  $name" ;;
+      *) echo "skip    $name: $link links elsewhere ($(readlink "$link"))" ;;
+    esac
+  elif [ -e "$link" ]; then
+    echo "skip    $name: $link exists and is not a symlink"
+  else
+    act ln -s "$skill" "$link"; echo "link    $name"
+  fi
+done
+
+# Links into this repository whose skill is gone.
+for link in "$dest"/*; do
+  [ -L "$link" ] || continue
+  case "$(readlink "$link")" in
+    "$repo"/*) [ -f "$link/SKILL.md" ] || { act rm "$link"; echo "remove  $(basename "$link")"; } ;;
+  esac
+done
