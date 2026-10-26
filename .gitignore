@@ -1,0 +1,6 @@
+# per-app config may contain internal URLs/selectors; commit only the example
+ui-council.config.json
+# captures and node deps
+node_modules/
+/tmp/
+*.png

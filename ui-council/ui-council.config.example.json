@@ -1,0 +1,26 @@
+{
+  "base": "https://app.example.com",
+  "routeWaitFor": "networkidle",
+  "settleMs": 400,
+  "login": {
+    "path": "/login",
+    "emailSelector": "input[name=email]",
+    "passwordSelector": "input[name=password]",
+    "submitSelector": "button[type=submit]",
+    "waitFor": "networkidle",
+    "waitAfterSubmit": "networkidle",
+    "postLoginWaitFor": "nav",
+    "emailEnv": "UI_EMAIL",
+    "passwordEnv": "UI_PASSWORD"
+  },
+  "viewports": [
+    { "name": "desktop", "width": 1440, "height": 900 },
+    { "name": "phone", "width": 390, "height": 844 }
+  ],
+  "routes": [
+    { "name": "dashboard", "path": "/" },
+    { "name": "list", "path": "/items" },
+    { "name": "detail", "path": "/items/example", "waitFor": "main" },
+    { "name": "settings", "path": "/settings" }
+  ]
+}
